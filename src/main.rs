@@ -1,126 +1,56 @@
-use clap::{Parser, Subcommand};
+mod cli;
+mod cmd;
+mod data;
 
-use serde::{Serialize, Deserialize};
+use crate::data::NixFlakeData;
+use crate::cli::{Cli, Commands};
+use crate::cmd::NixFlake;
+
+use clap::Parser;
+
 use serde_json;
 
-use std::collections::HashMap;
 use std::env;
+use std::fmt::Display;
 use std::path::PathBuf;
-use std::process::Command;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ShellInfo {
-    pub name: String,
-    pub r#type: String,
+#[derive(Debug)]
+enum FlakePathError {
+  Empty,
+  NotFound(PathBuf),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NixFlakeData {
-    #[serde(flatten)]
-    pub devshells: HashMap<String, HashMap<String, HashMap<String, ShellInfo>>> // Dirty hack
-}
+impl std::error::Error for FlakePathError {}
 
-impl NixFlakeData {
-
-    pub fn shell_exists(&self, archi: &str, shell_name: &str) -> bool {
-        let devshells = self.devshells.get("devShells").unwrap(); // safe: used on unserialized data
-
-        if let Some(shell) = devshells.get(archi) {
-            if let Some(_shellinfo) = shell.get(shell_name) {
-                true
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-
-    }
-
-    pub fn print_shells(&self, archi: &str) {
-        let devshells = self.devshells.get("devShells").unwrap(); // safe: used on unserialized data
-
-        if let Some(shell) = devshells.get(archi) {
-            for sh in shell.keys() {
-                println!("{sh}");
-            }
-        } else {
-            println!("No devshells found for {archi}");
+impl Display for FlakePathError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FlakePathError::Empty =>
+                write!(f, "Empty Flake path. Use --path or DV_FLAKE_DIR environment variable"),
+            FlakePathError::NotFound(path) =>
+                write!(f, "Flake path {:?} not found", path),
         }
     }
-
 }
 
-#[derive(Debug, Clone)]
-pub struct NixFlake {
-    pub archi: String,
-    pub path: String,
-    pub name: String,
-}
+fn get_flake_pathdir(args: &Cli) -> Result<PathBuf, FlakePathError> {
+    let flake_envpath = env::var("DV_FLAKE_DIR");
 
-impl NixFlake {
-
-    pub fn new(archi: &str, path: &str, name: &str) -> Self {
-        Self {
-            archi: archi.to_string(),
-            path: path.to_string(),
-            name: name.to_string()
-        }
+    if flake_envpath.is_err() && args.path.is_none() {
+        return Err(FlakePathError::Empty);
     }
 
-    pub fn to_json(&self) -> String {
-        let path = format!("path:{}", self.path);
+    let path = if flake_envpath.is_ok() {
+        PathBuf::from(flake_envpath.unwrap())
+    } else {
+        args.path.clone().unwrap()
+    };
 
-        let output = Command::new("nix")
-            .arg("flake")
-            .arg("show")
-            .arg(path)
-            .arg("--json")
-            .output()
-            .expect("Could not retrieve devshells json metadata.");
-
-        String::from_utf8(output.stdout).expect("Could not convert stdout to sting type.")
+    if ! path.exists() {
+        return Err(FlakePathError::NotFound(path));
     }
 
-    pub fn spawn_shell(&self) {
-        let path = format!("{}#{}", self.path, self.name);
-        let mut cmd = Command::new("nix");
-
-        if let Ok(mut child) = cmd.arg("develop").arg(&path).spawn() {
-            child.wait().expect("command wasn't running");
-            println!("Nix DevShell: Bye! Leaving {}", path);
-        } else {
-            println!("Nix DevShell didn't start");
-        }
-    }
-
-}
-
-#[derive(Debug, Parser)]
-#[command(name = "dvenv")]
-#[command(about = "CLI for poping into Nix shell", long_about = None)]
-struct Cli {
-
-    /// Directory containing the flake.nix file (default: DVENV_FLAKE_DIR shell variable)
-    #[arg(short, long, value_name = "DIR")]
-    path: Option<PathBuf>,
-
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Debug, Subcommand)]
-enum Commands {
-    /// List available environments
-    List,
-
-    /// Use a targeted development environment
-    #[command(arg_required_else_help = true)]
-    Use {
-        /// Targeted development environment name
-        #[arg(value_name = "NAME")]
-        name: String
-    },
+    Ok(path)
 }
 
 fn main() {
@@ -128,20 +58,13 @@ fn main() {
 
     let args = Cli::parse();
 
-    let flake_envpath = env::var("DVENV_FLAKE_DIR");
-    let path = if flake_envpath.is_ok() {
-        PathBuf::from(flake_envpath.unwrap())
-    } else {
-        args.path.unwrap_or_else(|| {
-            eprintln!("Empty Flake path. Use --path or DVEN_FLAKE_DIR environment variable");
+    let path = match get_flake_pathdir(&args) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{}", e);
             std::process::exit(1);
-        })
+        }
     };
-
-    if ! path.exists() {
-        eprintln!("Flake path {:?} not found", path);
-        std::process::exit(1);
-    }
 
     let path_str = path.display().to_string();
 
