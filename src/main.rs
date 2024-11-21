@@ -1,37 +1,19 @@
 mod cli;
 mod cmd;
 mod data;
+mod errors;
 
 use crate::data::NixFlakeData;
 use crate::cli::{Cli, Commands};
 use crate::cmd::NixFlake;
+use crate::errors::FlakePathError;
 
 use clap::Parser;
 
 use serde_json;
 
 use std::env;
-use std::fmt::Display;
 use std::path::PathBuf;
-
-#[derive(Debug)]
-enum FlakePathError {
-  Empty,
-  NotFound(PathBuf),
-}
-
-impl std::error::Error for FlakePathError {}
-
-impl Display for FlakePathError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FlakePathError::Empty =>
-                write!(f, "Empty Flake path. Use --path or DV_FLAKE_DIR environment variable"),
-            FlakePathError::NotFound(path) =>
-                write!(f, "Flake path {:?} not found", path),
-        }
-    }
-}
 
 fn get_flake_pathdir(args: &Cli) -> Result<PathBuf, FlakePathError> {
     let flake_envpath = env::var("DV_FLAKE_DIR");
