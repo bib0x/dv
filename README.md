@@ -15,6 +15,7 @@ Usage: dvenv [OPTIONS] <COMMAND>
 
 Commands:
   list  List available environments
+  run   Run a command from a targeted development environment
   use   Use a targeted development environment
   help  Print this message or the help of the given subcommand(s)
 
@@ -30,6 +31,9 @@ $ DV_FLAKE_DIR=$HOME/work/git/me/devshells dvenv  list
 prod_netbox
 
 $ DV_FLAKE_DIR=$HOME/path/to/devshells dvenv use prod_netbox
+(nix-shell) $ curl -H "Authorization: Token $NETBOX_TOKEN" $NETBOX_URL/api/dcim/device-types/527/
+
+$ DV_FLAKE_DIR=$HOME/path/to/devshells dvenv run prod_netbox 'curl -H "Authorization: Token $NETBOX_TOKEN" $NETBOX_URL/api/dcim/device-types/999/'
 ```
 
 ## Details

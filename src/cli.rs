@@ -20,6 +20,18 @@ pub enum Commands {
     /// List available environments
     List,
 
+    /// Run a command from a targeted development environment
+    #[command(arg_required_else_help = true)]
+    Run {
+        /// Targeted development environment name
+        #[arg(value_name = "NAME")]
+        name: String,
+
+        /// Targeted development environment name
+        #[arg(value_name = "CMD")]
+        cmd: String,
+    },
+
     /// Use a targeted development environment
     #[command(arg_required_else_help = true)]
     Use {
