@@ -43,4 +43,21 @@ impl NixFlake {
         }
     }
 
+    pub fn run_command(&self, command: &str) {
+        let path = format!("{}#{}", self.path, self.name);
+        let mut cmd = Command::new("nix");
+
+        if let Ok(mut child) = cmd.args(&[
+            "develop",
+            &path,
+            "--command",
+            "bash", "-c",
+            command]).spawn() {
+            child.wait().expect("command wasn't running");
+        }
+        else {
+            println!("Error: Could not run command");
+        }
+    }
+
 }

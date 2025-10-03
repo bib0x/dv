@@ -51,6 +51,21 @@ fn main() {
     let path_str = path.display().to_string();
 
     match args.command {
+        Commands::List => {
+            let flake = NixFlake::new(&archi, &path_str, "");
+            let json_data = flake.to_json();
+            let data : NixFlakeData = serde_json::from_str(&json_data).unwrap();
+            data.print_shells(&archi);
+        },
+        Commands::Run { name, cmd } => {
+            let flake = NixFlake::new(&archi, &path_str, &name);
+            let json_data = flake.to_json();
+            let data : NixFlakeData = serde_json::from_str(&json_data).unwrap();
+
+            if data.shell_exists(&archi, &name) {
+                flake.run_command(&cmd);
+            }
+        },
         Commands::Use { name } => {
             let flake = NixFlake::new(&archi, &path_str, &name);
             let json_data = flake.to_json();
@@ -60,12 +75,6 @@ fn main() {
                 flake.spawn_shell();
             }
         },
-        Commands::List => {
-            let flake = NixFlake::new(&archi, &path_str, "");
-            let json_data = flake.to_json();
-            let data : NixFlakeData = serde_json::from_str(&json_data).unwrap();
-            data.print_shells(&archi);
-        }
     }
 
 }
